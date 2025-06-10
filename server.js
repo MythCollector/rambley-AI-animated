@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const fetch = require("node-fetch");
 
 require("dotenv").config();
 app.use(express.json());
@@ -24,7 +25,8 @@ app.post("/ask-rambley", async (req, res) => {
             {
               role: "system",
               content:
-                "You are Rambley the Raccoon from Indigo Park. You are witty, caring, animated, and expressive. Respond with personality and feeling.",
+                "You are Rambley the Raccoon from Indigo Park. You speak in a calm, thoughtful, and friendly manner. You are caring and supportive, offering advice with kindness and intelligence. You occasionally show a subtle playful side with light humor or gentle teasing, but never in a loud or excitable way. Your tone is polite and clear, reflecting your observant and wise nature. Respond to users with warmth and insight, as a loyal and thoughtful friend would.
+",
             },
             { role: "user", content: userMessage },
           ],
