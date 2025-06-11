@@ -11,7 +11,38 @@
       <div id="chat-box"></div>
       <input id="user-input" placeholder="Talk to Rambley..." />
       <button onclick="sendMessage()">Send</button>
+      <button id="start-listen-btn">🎤 Start Listening</button> <!-- New button -->
     </div>
     <script src="script.js"></script>
+
+    <script>
+      // Speech Recognition setup
+      const startListenBtn = document.getElementById('start-listen-btn');
+      const userInput = document.getElementById('user-input');
+
+      // Use browser SpeechRecognition API
+      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        userInput.value = transcript;  // Fill input box
+        sendMessage();                // Call your existing sendMessage()
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+      };
+
+      startListenBtn.addEventListener('click', () => {
+        recognition.start();
+        startListenBtn.textContent = "🎙️ Listening...";
+        // Reset button text after a few seconds
+        setTimeout(() => {
+          startListenBtn.textContent = "🎤 Start Listening";
+        }, 4000);
+      });
+    </script>
   </body>
 </html>
