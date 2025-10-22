@@ -21,7 +21,7 @@ async function sendMessage() {
   const res = await fetch("/ask-rambley", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message })
   });
 
   const data = await res.json();
@@ -32,9 +32,7 @@ async function sendMessage() {
 
   // Speak the reply
   const utter = new SpeechSynthesisUtterance(reply);
-  utter.voice = speechSynthesis
-    .getVoices()
-    .find((v) => v.name.includes("Google") || v.lang === "en-US");
+  utter.voice = speechSynthesis.getVoices().find(v => v.name.includes("Google") || v.lang === "en-US");
   speechSynthesis.speak(utter);
 
   // Return to idle after speaking
