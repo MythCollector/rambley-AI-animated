@@ -12,54 +12,59 @@ const personalityPath = path.join(__dirname, "rambleyPersonality.js");
 app.use(express.json());
 app.use(express.static("public"));
 
-// 🔁 Watch for live file edits and reload Rambley’s personality automatically
+// 🔁 Watch for live edits and reload personality automatically
 fs.watchFile(personalityPath, () => {
   delete require.cache[require.resolve("./rambleyPersonality.js")];
   ({ rambleyPersonality } = require("./rambleyPersonality.js"));
-  console.log("🔁 Personality file reloaded automatically!");
+  console.log("🔁 Personality file reloaded!");
 });
 
 app.post("/ask-rambley", async (req, res) => {
   const userMessage = req.body.message;
 
-  // 🔹 Handle live personality updates
+  // 🔹 Handle adding new personality traits
   const personalityMatch = userMessage.match(/\(add personality:\s*"([^"]+)"\)/i);
   if (personalityMatch) {
     const newTrait = personalityMatch[1];
 
     try {
-      // Read current personality JS file
-      const fileContent = fs.readFileSync(personalityPath, "utf8");
+      // Read the current JS file
+      let fileContent = fs.readFileSync(personalityPath, "utf8");
 
-      // Evaluate the exported object safely
-      const rambleyModule = {};
-      eval(fileContent.replace(/export const /, "rambleyModule."));
-
-      // Add new trait to the uses array if not already present
-      if (!rambleyModule.rambleyPersonality.styleGuide.uses.includes(newTrait)) {
-        rambleyModule.rambleyPersonality.styleGuide.uses.push(newTrait);
+      // Parse the existing additionalTraits array
+      const traitsMatch = fileContent.match(/additionalTraits\s*:\s*\[([^\]]*)\]/);
+      let existingTraits = [];
+      if (traitsMatch && traitsMatch[1].trim()) {
+        // Split by commas and remove quotes/spaces
+        existingTraits = traitsMatch[1]
+          .split(",")
+          .map(s => s.trim().replace(/^['"]|['"]$/g, ""))
+          .filter(Boolean);
       }
 
-      // Convert back to JS string
-      const newFileContent = `export const rambleyPersonality = ${JSON.stringify(
-        rambleyModule.rambleyPersonality,
-        null,
-        2
-      )};`;
+      // Add the new trait if it's not already in the array
+      if (!existingTraits.includes(newTrait)) existingTraits.push(newTrait);
 
-      fs.writeFileSync(personalityPath, newFileContent, "utf8");
+      // Replace the array in the file content
+      const updatedContent = fileContent.replace(
+        /additionalTraits\s*:\s*\[[^\]]*\]/,
+        `additionalTraits: [${existingTraits.map(t => `"${t}"`).join(", ")}]`
+      );
+
+      // Write it back
+      fs.writeFileSync(personalityPath, updatedContent, "utf8");
 
       // Reload personality immediately
       delete require.cache[require.resolve("./rambleyPersonality.js")];
       ({ rambleyPersonality } = require("./rambleyPersonality.js"));
 
       return res.json({
-        reply: `Heh, got it! I’ve added "${newTrait}" to my personality — guess I’m learning as I go!`,
+        reply: `Heh, got it! I’ve added "${newTrait}" to my personality. I’m learning as I go!`,
       });
     } catch (err) {
       console.error("❌ Error updating personality file:", err);
       return res.json({
-        reply: "Yikes! Something went wrong while I was trying to update my personality!",
+        reply: "Yikes! Something went wrong while I was updating my personality!",
       });
     }
   }
@@ -74,37 +79,34 @@ ${JSON.stringify(rambleyPersonality.styleGuide, null, 2)}
 
 Here are examples of how you talk:
 ${rambleyPersonality.examples
-    .map((e) => `User: ${e.user}\nRambley: ${e.rambley}`)
+    .map(e => `User: ${e.user}\nRambley: ${e.rambley}`)
     .join("\n\n")}
+
+Additional traits: ${rambleyPersonality.additionalTraits.join(", ")}
 `;
 
   try {
     // 🗣️ Send user + system messages to OpenRouter
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "meta-llama/llama-3-8b-instruct",
-          messages: [
-            { role: "system", content: personalityPrompt.trim() },
-            { role: "user", content: userMessage.trim() },
-          ],
-        }),
-      }
-    );
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-3-8b-instruct",
+        messages: [
+          { role: "system", content: personalityPrompt.trim() },
+          { role: "user", content: userMessage.trim() }
+        ],
+      }),
+    });
 
     const data = await response.json();
     console.log("🧩 OpenRouter API response:", data);
 
-    // 🧾 Safely access the reply
     let reply = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.content;
 
-    // Default fallback
     if (!reply || reply.trim() === "") {
       reply = "Hey, uh... I might need a moment to think that one over.";
     }

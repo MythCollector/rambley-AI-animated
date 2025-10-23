@@ -31,9 +31,9 @@ async function sendMessage() {
   rambleyImg.src = "happy.png"; // show emotional reaction
 
   // Speak the reply
-  const utter = new SpeechSynthesisUtterance(reply);
-  utter.voice = speechSynthesis.getVoices().find(v => v.name.includes("Google") || v.lang === "en-US");
-  speechSynthesis.speak(utter);
+  //const utter = new SpeechSynthesisUtterance(reply);
+ // utter.voice = speechSynthesis.getVoices().find(v => v.name.includes("Google") || v.lang === "en-US");
+ // speechSynthesis.speak(utter);
 
   // Return to idle after speaking
   utter.onend = () => {
