@@ -1,23 +1,26 @@
 body {
-  background: #222;
+  background-color: #222;
+  background-size: contain; /* or cover if you want it stretched */
+  background-repeat: no-repeat;
+  background-position: center bottom; /* keeps Rambley near the bottom */
   color: white;
   font-family: sans-serif;
   text-align: center;
   padding: 30px;
+  height: 100vh;
 }
+
 
 #container {
   max-width: 500px;
   margin: auto;
-}
-
-#rambley-img {
-  width: 200px;
-  transition: transform 0.3s ease;
+  background: rgba(0,0,0,0.6); /* make chat box slightly transparent */
+  padding: 20px;
+  border-radius: 8px;
 }
 
 #chat-box {
-  background: #333;
+  background: rgba(51,51,51,0.8);
   padding: 10px;
   margin: 20px 0;
   height: 200px;
@@ -40,4 +43,16 @@ button {
   color: white;
   border-radius: 5px;
   cursor: pointer;
+}
+#rambley-bg {
+  position: fixed;
+  bottom: 0;          /* anchor to bottom */
+  left: 50%;          /* center horizontally */
+  transform: translateX(-50%);
+  height: auto;
+  max-height: 50vh;   /* make him fit half the viewport height */
+  width: auto;
+  z-index: 1;
+  pointer-events: none;
+  object-fit: contain; /* scale properly */
 }

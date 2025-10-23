@@ -2,47 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Rambley the AI Raccoon</title>
+    <title>Rambley</title>
     <link rel="stylesheet" href="style.css" />
   </head>
-  <body>
-    <div id="container">
-      <img id="rambley-img" src="idle.png" alt="Rambley" />
-      <div id="chat-box"></div>
-      <input id="user-input" placeholder="Talk to Rambley..." />
-      <button onclick="sendMessage()">Send</button>
-      <button id="start-listen-btn">🎤 Start Listening</button> <!-- New button -->
-    </div>
-    <script src="script.js"></script>
+<body>
+  <!-- Background image for Rambley -->
 
-    <script>
-      // Speech Recognition setup
-      const startListenBtn = document.getElementById('start-listen-btn');
-      const userInput = document.getElementById('user-input');
+  <div id="container">
+    <div id="chat-box"></div>
+    <input id="user-input" placeholder="Talk to Rambley..." />
+    <button onclick="sendMessage()">Send</button>
+    <button id="start-listen-btn">🎤 Start Listening</button>
+  </div>
 
-      // Use browser SpeechRecognition API
-      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-      recognition.lang = 'en-US';
-      recognition.interimResults = false;
-
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        userInput.value = transcript;  // Fill input box
-        sendMessage();                // Call your existing sendMessage()
-      };
-
-      recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-      };
-
-      startListenBtn.addEventListener('click', () => {
-        recognition.start();
-        startListenBtn.textContent = "🎙️ Listening...";
-        // Reset button text after a few seconds
-        setTimeout(() => {
-          startListenBtn.textContent = "🎤 Start Listening";
-        }, 4000);
-      });
-    </script>
-  </body>
+  <script src="script.js"></script>
+</body>
 </html>

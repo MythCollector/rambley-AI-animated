@@ -6,55 +6,90 @@ const app = express();
 const PORT = 3000;
 require("dotenv").config();
 
+// 🔹 Personality
 let { rambleyPersonality } = require("./rambleyPersonality.js");
 const personalityPath = path.join(__dirname, "rambleyPersonality.js");
 
-app.use(express.json());
-app.use(express.static("public"));
+// 🔹 Memory
+const memoryPath = path.join(__dirname, "rambleyMemory.json");
+let rambleyMemory = { hasIntroduced: false, recentMessages: [] };
 
-// 🔁 Watch for live edits and reload personality automatically
+// Load memory from file if exists
+function loadMemory() {
+  if (fs.existsSync(memoryPath)) {
+    try {
+      rambleyMemory = JSON.parse(fs.readFileSync(memoryPath, "utf8"));
+      console.log("💾 Memory loaded:", rambleyMemory);
+    } catch (err) {
+      console.error("❌ Error reading memory file:", err);
+    }
+  }
+}
+loadMemory();
+
+// Save memory safely
+function saveMemory() {
+  try {
+    fs.writeFileSync(memoryPath, JSON.stringify(rambleyMemory, null, 2));
+    console.log("💾 Memory saved:", rambleyMemory);
+  } catch (err) {
+    console.error("❌ Error saving memory:", err);
+  }
+}
+
+// 🔁 Reload personality on change
 fs.watchFile(personalityPath, () => {
   delete require.cache[require.resolve("./rambleyPersonality.js")];
   ({ rambleyPersonality } = require("./rambleyPersonality.js"));
   console.log("🔁 Personality file reloaded!");
 });
 
-app.post("/ask-rambley", async (req, res) => {
-  const userMessage = req.body.message;
+app.use(express.json());
+app.use(express.static("public"));
 
-  // 🔹 Handle adding new personality traits
+// Test route to check memory
+app.get("/memory", (req, res) => {
+  res.json(rambleyMemory);
+});
+
+app.post("/ask-rambley", async (req, res) => {
+  const userMessage = req.body.message?.trim();
+  if (!userMessage) return res.json({ reply: "You didn’t say anything!" });
+
+  const lowerMsg = userMessage.toLowerCase();
+
+  // 🔹 Reset memory
+  if (lowerMsg === "rambley, clear") {
+    rambleyMemory = { hasIntroduced: false, recentMessages: [] };
+    saveMemory();
+    return res.json({ reply: "Memory cleared! I'm starting fresh now." });
+  }
+
+  // 🔹 Add personality trait
   const personalityMatch = userMessage.match(/\(add personality:\s*"([^"]+)"\)/i);
   if (personalityMatch) {
     const newTrait = personalityMatch[1];
-
     try {
-      // Read the current JS file
       let fileContent = fs.readFileSync(personalityPath, "utf8");
-
-      // Parse the existing additionalTraits array
       const traitsMatch = fileContent.match(/additionalTraits\s*:\s*\[([^\]]*)\]/);
       let existingTraits = [];
+
       if (traitsMatch && traitsMatch[1].trim()) {
-        // Split by commas and remove quotes/spaces
         existingTraits = traitsMatch[1]
           .split(",")
           .map(s => s.trim().replace(/^['"]|['"]$/g, ""))
           .filter(Boolean);
       }
 
-      // Add the new trait if it's not already in the array
       if (!existingTraits.includes(newTrait)) existingTraits.push(newTrait);
 
-      // Replace the array in the file content
       const updatedContent = fileContent.replace(
         /additionalTraits\s*:\s*\[[^\]]*\]/,
         `additionalTraits: [${existingTraits.map(t => `"${t}"`).join(", ")}]`
       );
 
-      // Write it back
       fs.writeFileSync(personalityPath, updatedContent, "utf8");
 
-      // Reload personality immediately
       delete require.cache[require.resolve("./rambleyPersonality.js")];
       ({ rambleyPersonality } = require("./rambleyPersonality.js"));
 
@@ -63,13 +98,25 @@ app.post("/ask-rambley", async (req, res) => {
       });
     } catch (err) {
       console.error("❌ Error updating personality file:", err);
-      return res.json({
-        reply: "Yikes! Something went wrong while I was updating my personality!",
-      });
+      return res.json({ reply: "Yikes! Something went wrong updating personality!" });
     }
   }
 
-  // 🧠 Build Rambley's system personality prompt
+  // 🔹 Memory-based introduction
+  if (!rambleyMemory.hasIntroduced) {
+    rambleyMemory.hasIntroduced = true;
+    saveMemory();
+    return res.json({
+      reply: "Oh! Hey there—wait, we’ve met before, haven’t we? I already introduced myself once!"
+    });
+  }
+
+  // 🔹 Handle greetings (but do not reintroduce)
+  if (["hi", "hello", "hey"].some(w => lowerMsg.includes(w))) {
+    return res.json({ reply: "You already said hi, silly! But hey again anyway!" });
+  }
+
+  // 📝 Build system prompt with memory-awareness
   const personalityPrompt = `
 You are ${rambleyPersonality.name} from Indigo Park.
 ${rambleyPersonality.description}
@@ -77,16 +124,21 @@ ${rambleyPersonality.description}
 Follow this style guide strictly:
 ${JSON.stringify(rambleyPersonality.styleGuide, null, 2)}
 
-Here are examples of how you talk:
-${rambleyPersonality.examples
-    .map(e => `User: ${e.user}\nRambley: ${e.rambley}`)
-    .join("\n\n")}
-
 Additional traits: ${rambleyPersonality.additionalTraits.join(", ")}
+
+Recent conversation:
+${rambleyMemory.recentMessages.map(m => `User: ${m.user}\nRambley: ${m.rambley}`).join("\n")}
+
+Memory flags:
+- hasIntroduced: ${rambleyMemory.hasIntroduced}
+
+Instructions:
+- DO NOT reintroduce yourself if hasIntroduced is true.
+- Respond naturally and continue the conversation without repeating introductions.
+- Only mention introductions if hasIntroduced is false.
 `;
 
   try {
-    // 🗣️ Send user + system messages to OpenRouter
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -97,19 +149,19 @@ Additional traits: ${rambleyPersonality.additionalTraits.join(", ")}
         model: "meta-llama/llama-3-8b-instruct",
         messages: [
           { role: "system", content: personalityPrompt.trim() },
-          { role: "user", content: userMessage.trim() }
+          { role: "user", content: userMessage }
         ],
       }),
     });
 
     const data = await response.json();
-    console.log("🧩 OpenRouter API response:", data);
+    let reply = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.content || 
+                "Hey, uh... I might need a second to think that through.";
 
-    let reply = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.content;
-
-    if (!reply || reply.trim() === "") {
-      reply = "Hey, uh... I might need a moment to think that one over.";
-    }
+    // 🔹 Store conversation in memory
+    rambleyMemory.recentMessages.push({ user: userMessage, rambley: reply });
+    if (rambleyMemory.recentMessages.length > 10) rambleyMemory.recentMessages.shift();
+    saveMemory();
 
     res.json({ reply });
   } catch (err) {
